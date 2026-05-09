@@ -22,10 +22,10 @@ export default function AdminEmployeePage() {
   const [approving, setApproving] = useState(false);
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!adminProfile) { router.replace('/login'); return; }
-    if (adminProfile.role === 'employee') { router.replace('/employee'); return; }
-    load();
+    if (!authLoading && adminProfile) {
+      if (adminProfile.role === 'employee') router.replace('/employee');
+      else load();
+    }
   }, [authLoading, adminProfile]);
 
   async function load() {

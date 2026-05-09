@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase-client';
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -15,22 +17,17 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
 
-    try {
-      const supabase = createClient();
-      const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+    const supabase = createClient();
+    const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
 
-      if (authError) {
-        setError(authError.message);
-        setLoading(false);
-        return;
-      }
-
-      // Full reload ensures server components read the fresh session cookie
-      window.location.href = '/';
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+    if (authError) {
+      setError(authError.message);
       setLoading(false);
+      return;
     }
+
+    router.push('/');
+    router.refresh();
   }
 
   return (
