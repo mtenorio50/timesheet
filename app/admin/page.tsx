@@ -14,10 +14,10 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!authLoading && profile) {
-      if (profile.role === 'employee') router.replace('/employee');
-      else loadUsers();
-    }
+    if (authLoading) return;
+    if (!profile) { router.replace('/login'); return; }
+    if (profile.role === 'employee') { router.replace('/employee'); return; }
+    loadUsers();
   }, [authLoading, profile]);
 
   async function loadUsers() {
