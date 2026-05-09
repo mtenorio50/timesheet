@@ -1,12 +1,22 @@
 export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase-server';
+import { createClient, createServiceClient } from '@/lib/supabase-server';
 
 export async function POST(request: Request) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { data: profile } = await supabase
+    .from('users')
+    .select('is_approved')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile?.is_approved) {
+    return NextResponse.json({ error: 'Account pending approval' }, { status: 403 });
+  }
 
   const { timesheetId } = await request.json();
   if (!timesheetId) return NextResponse.json({ error: 'timesheetId required' }, { status: 400 });
@@ -41,8 +51,10 @@ export async function POST(request: Request) {
 
   if (submitError) return NextResponse.json({ error: submitError.message }, { status: 500 });
 
-  // Write audit log
-  await supabase.from('audit_log').insert({
+  // Write audit log using service client — the employee's session is blocked
+  // by the audit_insert_admin RLS policy (see migration 003 for the fix)
+  const serviceSupabase = createServiceClient();
+  await serviceSupabase.from('audit_log').insert({
     timesheet_id: timesheetId,
     admin_id: user.id,
     action: 'submitted',

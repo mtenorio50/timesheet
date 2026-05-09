@@ -11,8 +11,9 @@ export type AdminEditReason = (typeof ADMIN_EDIT_REASONS)[number];
 
 export function formatHours(hours: number | null | undefined): string {
   if (hours == null) return '—';
-  const h = Math.floor(hours);
-  const m = Math.round((hours - h) * 60);
+  let h = Math.floor(hours);
+  let m = Math.round((hours - h) * 60);
+  if (m === 60) { h += 1; m = 0; }
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
@@ -65,7 +66,8 @@ export function getCurrentPeriod(
   const periodDays = periodType === 'weekly' ? 7 : 14;
   const diffMs = today.getTime() - anchor.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const periodsElapsed = Math.floor(diffDays / periodDays);
+  // Clamp to 0 so a future anchor date doesn't produce a period in the past
+  const periodsElapsed = Math.max(0, Math.floor(diffDays / periodDays));
 
   const start = new Date(anchor);
   start.setDate(anchor.getDate() + periodsElapsed * periodDays);

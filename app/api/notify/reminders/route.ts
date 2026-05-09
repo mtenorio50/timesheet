@@ -1,15 +1,17 @@
 export const runtime = 'nodejs';
 
+import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase-server';
 import { sendPushToMany } from '@/lib/push';
 import type { PushSubscriptionJSON } from '@/lib/types';
 
 export async function POST(request: Request) {
-  // Verify cron secret
-  const authHeader = request.headers.get('Authorization');
-  const expectedSecret = `Bearer ${process.env.CRON_SECRET}`;
-  if (!authHeader || authHeader !== expectedSecret) {
+  const authHeader = request.headers.get('Authorization') ?? '';
+  const expected = `Bearer ${process.env.CRON_SECRET ?? ''}`;
+  const a = Buffer.from(authHeader);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -28,24 +30,22 @@ export async function POST(request: Request) {
   });
 
   if (error) {
-    console.error('get_reminder_targets error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('get_reminder_targets error — check Supabase logs for details');
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 
   if (!targets || targets.length === 0) {
     return NextResponse.json({ sent: 0, message: 'No targets' });
   }
 
-  const subscriptions = (targets as Array<{ push_subscription: PushSubscriptionJSON }>)
+  const subscriptions = (targets as Array<{ push_subscription: PushSubscriptionJSON; user_id: string }>)
     .map((t) => t.push_subscription)
     .filter(Boolean);
 
-  const title = daysBefore === 0
-    ? 'Timesheet due today'
-    : `Timesheet due tomorrow`;
+  const title = daysBefore === 0 ? 'Timesheet due today' : 'Timesheet due tomorrow';
   const body2 = daysBefore === 0
     ? 'Submit your timesheet before end of day.'
-    : 'Don\'t forget — your timesheet is due tomorrow.';
+    : "Don't forget — your timesheet is due tomorrow.";
 
   const { sent, failed, expiredEndpoints } = await sendPushToMany(subscriptions, {
     title,
@@ -53,13 +53,17 @@ export async function POST(request: Request) {
     url: '/employee/timesheet',
   });
 
-  // Clean up expired subscriptions (HTTP 410)
+  // Clean up expired subscriptions (HTTP 410) — match by user_id for safety
   if (expiredEndpoints.length > 0) {
-    for (const endpoint of expiredEndpoints) {
+    const expiredUserIds = (targets as Array<{ push_subscription: PushSubscriptionJSON; user_id: string }>)
+      .filter((t) => expiredEndpoints.includes(t.push_subscription?.endpoint))
+      .map((t) => t.user_id);
+
+    for (const userId of expiredUserIds) {
       await supabase
         .from('users')
         .update({ push_subscription: null })
-        .filter('push_subscription->>endpoint', 'eq', endpoint);
+        .eq('id', userId);
     }
   }
 

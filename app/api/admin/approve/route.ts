@@ -21,6 +21,17 @@ export async function POST(request: Request) {
   const { timesheetId } = await request.json();
   if (!timesheetId) return NextResponse.json({ error: 'timesheetId required' }, { status: 400 });
 
+  const { data: existing } = await supabase
+    .from('timesheets')
+    .select('status')
+    .eq('id', timesheetId)
+    .single();
+
+  if (!existing) return NextResponse.json({ error: 'Timesheet not found' }, { status: 404 });
+  if (existing.status !== 'submitted') {
+    return NextResponse.json({ error: 'Timesheet must be submitted before it can be approved' }, { status: 409 });
+  }
+
   const { data: updated, error } = await supabase
     .from('timesheets')
     .update({

@@ -6,6 +6,16 @@ export async function DELETE() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const { data: profile } = await supabase
+    .from('users')
+    .select('is_approved')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile?.is_approved) {
+    return NextResponse.json({ error: 'Account pending approval' }, { status: 403 });
+  }
+
   const { error } = await supabase
     .from('users')
     .update({ push_subscription: null })

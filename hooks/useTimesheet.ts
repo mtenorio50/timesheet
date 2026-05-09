@@ -30,7 +30,7 @@ export function useTimesheet(profile: User | null): UseTimesheetReturn {
     const periodStart = toDateString(start);
     const periodEnd = toDateString(end);
 
-    // Upsert the timesheet for this period
+    // Try to find existing timesheet for this period
     const { data: existing } = await supabase
       .from('timesheets')
       .select('*')
@@ -38,15 +38,29 @@ export function useTimesheet(profile: User | null): UseTimesheetReturn {
       .eq('period_start', periodStart)
       .maybeSingle();
 
-    let ts = existing as Timesheet | null;
+    let ts: Timesheet | null = existing as Timesheet | null;
 
     if (!ts) {
-      const { data: created } = await supabase
+      // Insert; if a concurrent tab wins the race, the unique constraint fires
+      // and we fall back to a re-fetch of the winning row.
+      const { data: created, error: insertErr } = await supabase
         .from('timesheets')
         .insert({ user_id: profile.id, period_start: periodStart, period_end: periodEnd })
         .select()
         .single();
-      ts = created as Timesheet | null;
+
+      if (insertErr) {
+        // Unique constraint violation (23505) — another tab inserted first
+        const { data: winner } = await supabase
+          .from('timesheets')
+          .select('*')
+          .eq('user_id', profile.id)
+          .eq('period_start', periodStart)
+          .single();
+        ts = winner as Timesheet | null;
+      } else {
+        ts = created as Timesheet | null;
+      }
     }
 
     setTimesheet(ts);

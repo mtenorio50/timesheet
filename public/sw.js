@@ -57,7 +57,15 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = event.notification.data?.url ?? '/employee';
+  const rawUrl = event.notification.data?.url ?? '/employee';
+  // Guard against open-redirect: only navigate to same-origin paths
+  let url;
+  try {
+    const parsed = new URL(rawUrl, self.location.origin);
+    url = parsed.origin === self.location.origin ? parsed.href : `${self.location.origin}/employee`;
+  } catch {
+    url = `${self.location.origin}/employee`;
+  }
   event.waitUntil(
     clients
       .matchAll({ type: 'window', includeUncontrolled: true })

@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
-import { createClient } from '@/lib/supabase-client';
 import type { User } from '@/lib/types';
 
 export default function AdminPage() {
@@ -30,9 +29,14 @@ export default function AdminPage() {
   }
 
   async function approveUser(userId: string) {
-    const supabase = createClient();
-    await supabase.from('users').update({ is_approved: true }).eq('id', userId);
-    setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, is_approved: true } : u));
+    const res = await fetch('/api/admin/approve-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    });
+    if (res.ok) {
+      setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, is_approved: true } : u));
+    }
   }
 
   if (authLoading || loading) {

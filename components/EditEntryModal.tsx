@@ -28,6 +28,10 @@ export default function EditEntryModal({ entry, onClose, onSaved }: Props) {
 
   async function handleSave() {
     if (!reason) { setError('Please select a reason.'); return; }
+    if (clockIn && clockOut && new Date(clockOut) <= new Date(clockIn)) {
+      setError('Clock out must be after clock in.');
+      return;
+    }
     setSaving(true);
     setError('');
     const res = await fetch('/api/admin/edit-entry', {

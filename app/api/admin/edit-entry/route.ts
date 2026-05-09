@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
   // Manually recalculate total_hours — the DB trigger only fires on NULL→non-NULL clock_out
   if (updates.clock_in || updates.clock_out) {
-    const newClockIn = new Date(updates.clock_in as string ?? existingEntry.clock_in);
+    const newClockIn = new Date((updates.clock_in as string) ?? existingEntry.clock_in);
     const newClockOut = updates.clock_out
       ? new Date(updates.clock_out as string)
       : existingEntry.clock_out
@@ -51,9 +51,11 @@ export async function POST(request: Request) {
         : null;
 
     if (newClockOut) {
-      updates.total_hours = Math.round(
-        ((newClockOut.getTime() - newClockIn.getTime()) / (1000 * 60 * 60)) * 100,
-      ) / 100;
+      const hours = (newClockOut.getTime() - newClockIn.getTime()) / (1000 * 60 * 60);
+      if (hours < 0) {
+        return NextResponse.json({ error: 'clock_out must be after clock_in' }, { status: 422 });
+      }
+      updates.total_hours = Math.round(hours * 100) / 100;
     }
   }
 
